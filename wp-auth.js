@@ -20,18 +20,23 @@ function sanitizeValue(value) {
 	}
 }
 
-function handleDisconnect(){
+function handleDisconnect(mysql_host,mysql_user,mysql_pass,mysql_db){
+	
+	const mysql = require('mysql2');
+
     try{
-		 this.pool = mysql.createPool({
+		 pool = mysql.createPool({
 		  host: mysql_host,
 		  user: mysql_user,
-                  password: mysql_pass,
+          password: mysql_pass,
 		  database: mysql_db,
 		  waitForConnections: true,
 		  connectionLimit: 10,
 		  queueLimit: 0
 		});
+
 		console.info('created pool to mysql host: ', mysql_host);
+		return pool;
 	}catch(e){
 		let date_ob = new Date();
         console.log(date_ob.getHours()+":"+date_ob.getMinutes()+' db error', e);
@@ -55,13 +60,10 @@ function WP_Auth(
 	var md5 = crypto.createHash('md5');
 	md5.update(wpurl);
 	this.cookiename = 'wordpress_logged_in_' + md5.digest('hex');
-	this.salt = logged_in_key + logged_in_salt;
-	//Create pool
-	// get the client
-	const mysql = require('mysql2');
+	this.salt = logged_in_key + logged_in_salt;c
 	
 	// Create the connection pool. The pool-specific settings are the defaults
-    handleDisconnect();
+    this.pool = handleDisconnect(mysql_host,mysql_user,mysql_pass,mysql_db);
 
 	// create the connection to database
 	// this.db = require('mysql2').createConnection({
