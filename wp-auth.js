@@ -65,21 +65,6 @@ function WP_Auth(
 	// Create the connection pool. The pool-specific settings are the defaults
     this.pool = handleDisconnect(mysql_host,mysql_user,mysql_pass,mysql_db);
 
-	// create the connection to database
-	// this.db = require('mysql2').createConnection({
-	// 	host: mysql_host,
-	// 	user: mysql_user,
-	// 	port: mysql_port,
-	// 	password: mysql_pass,
-	// 	database: mysql_db,
-	// });
-	// this.db.connect((err) => {
-	// 	if (err) {
-	// 		console.error('connection failed to mysql host:', mysql_host, err);
-	// 		return;
-	// 	}
-	// 	console.info('connected to mysql host: ', mysql_host);
-	// });
 	this.table_prefix = wp_table_prefix;
 	this.known_hashes = {};
 	this.known_hashes_timeout = {};
@@ -100,7 +85,6 @@ WP_Auth.prototype.checkAuth = function (req) {
 	if (!data) return new Invalid_Auth('no data in cookie');
 	if (parseInt(data[1]) < new Date() / 1000)
 		return new Invalid_Auth('expired cookie');
-	// console.log('Cookies data in cehck auth', data)
 	return new Valid_Auth(data, this);
 };
 WP_Auth.prototype.getUserMeta = function (id, key, callback) {
@@ -236,7 +220,6 @@ function Valid_Auth(data, auth) {
 		delete auth.known_hashes_timeout[user_login];
 	}
 	function parse(pass_frag, id) {
-		// console.log('Inside parse function', pass_frag, id)
 		var hmac1 = crypto.createHmac('md5', auth.salt);
 		var key = user_login + '|' + pass_frag + '|' + expiration + '|' + token;
 		hmac1.update(key);
@@ -244,8 +227,6 @@ function Valid_Auth(data, auth) {
 		var hmac2 = crypto.createHmac('sha256', hkey);
 		hmac2.update(user_login + '|' + expiration + '|' + token);
 		var cookieHash = hmac2.digest('hex');
-		// console.log('++++++++++++++++++++++++++ hash from wp config' , cookieHash)
-		// console.log('++++++++++++++++++++++++++++ hash from cookies', hash)
 		if (hash == cookieHash) {
 			self.emit('auth', true, id);
 		} else {
@@ -262,7 +243,6 @@ function Valid_Auth(data, auth) {
 	}
 	var found = false;
 
-console.log(auth);
 	auth.pool.query(
 
 		'select ID, user_pass from ' +
@@ -271,7 +251,7 @@ console.log(auth);
 			user_login.replace(/(\'|\\)/g, '\\$1') +
 			"'",
 		function (err, results) {
-			console.log('Query results', results, err)
+			// console.log('Query results', results, err)
 			const data = (results && results[0]) || '';
 			if (err || !data) {
 				auth.known_hashes[user_login] = { frag: '__fail__', id: 0 };
