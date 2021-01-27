@@ -1,6 +1,5 @@
 var crypto = require('crypto'),
 	phpjs = require('./serialize');
-
 function sanitizeValue(value) {
 	switch (typeof value) {
 		case 'boolean':
@@ -21,6 +20,26 @@ function sanitizeValue(value) {
 	}
 }
 
+function handleDisconnect(){
+    try{
+		 this.pool = mysql.createPool({
+		  host: mysql_host,
+		  user: mysql_user,
+                  password: mysql_pass,
+		  database: mysql_db,
+		  waitForConnections: true,
+		  connectionLimit: 10,
+		  queueLimit: 0
+		});
+		console.info('created pool to mysql host: ', mysql_host);
+	}catch(e){
+		let date_ob = new Date();
+        console.log(date_ob.getHours()+":"+date_ob.getMinutes()+' db error', err);
+		console.error('Pool creation failed to mysql host:', mysql_host, err);
+		handleDisconnect();
+    }
+}
+
 function WP_Auth(
 	wpurl,
 	logged_in_key,
@@ -37,34 +56,36 @@ function WP_Auth(
 	md5.update(wpurl);
 	this.cookiename = 'wordpress_logged_in_' + md5.digest('hex');
 	this.salt = logged_in_key + logged_in_salt;
+	//Create pool
+	// get the client
+	const mysql = require('mysql2');
+	
+	// Create the connection pool. The pool-specific settings are the defaults
+    handleDisconnect();
 
 	// create the connection to database
-	this.db = require('mysql2').createConnection({
-		host: mysql_host,
-		user: mysql_user,
-		port: mysql_port,
-		password: mysql_pass,
-		database: mysql_db,
-	});
-	this.db.connect((err) => {
-		if (err) {
-			console.error('connection failed to mysql host:', mysql_host, err);
-			return;
-		}
-		console.info('connected to mysql host: ', mysql_host);
-	});
-
+	// this.db = require('mysql2').createConnection({
+	// 	host: mysql_host,
+	// 	user: mysql_user,
+	// 	port: mysql_port,
+	// 	password: mysql_pass,
+	// 	database: mysql_db,
+	// });
+	// this.db.connect((err) => {
+	// 	if (err) {
+	// 		console.error('connection failed to mysql host:', mysql_host, err);
+	// 		return;
+	// 	}
+	// 	console.info('connected to mysql host: ', mysql_host);
+	// });
 	this.table_prefix = wp_table_prefix;
-
 	this.known_hashes = {};
 	this.known_hashes_timeout = {};
 	this.meta_cache = {};
 	this.meta_cache_timeout = {};
-
 	// Default cache time: 5 minutes
 	this.timeout = 300000;
 }
-
 WP_Auth.prototype.checkAuth = function (req) {
 	var self = this,
 		data = null;
@@ -74,19 +95,14 @@ WP_Auth.prototype.checkAuth = function (req) {
 				data = cookie.split('=')[1].trim().split('%7C');
 		});
 	else return new Invalid_Auth('no cookie');
-
 	if (!data) return new Invalid_Auth('no data in cookie');
-
 	if (parseInt(data[1]) < new Date() / 1000)
 		return new Invalid_Auth('expired cookie');
-
 	// console.log('Cookies data in cehck auth', data)
 	return new Valid_Auth(data, this);
 };
-
 WP_Auth.prototype.getUserMeta = function (id, key, callback) {
 	if (!(id in this.meta_cache_timeout)) this.meta_cache_timeout[id] = {};
-
 	if (
 		key in this.meta_cache_timeout[id] &&
 		this.meta_cache_timeout[id][key] < +new Date()
@@ -94,14 +110,12 @@ WP_Auth.prototype.getUserMeta = function (id, key, callback) {
 		delete this.meta_cache[id][key];
 		delete this.meta_cache_timeout[id][key];
 	}
-
 	if (id in this.meta_cache && key in this.meta_cache[id]) {
 		callback(this.meta_cache[id][key]);
 		return;
 	}
-
 	var self = this;
-	this.db.query(
+	this.pool.query(
 		'select meta_value from ' +
 			this.table_prefix +
 			"usermeta where meta_key = '" +
@@ -122,17 +136,13 @@ WP_Auth.prototype.getUserMeta = function (id, key, callback) {
 		}
 	);
 };
-
 WP_Auth.prototype.setUserMeta = function (id, key, value) {
 	if (!(id in this.meta_cache_timeout)) this.meta_cache_timeout[id] = {};
-
 	this.meta_cache[id][key] = value;
 	this.meta_cache_timeout[id][key] = +new Date() + this.timeout;
-
 	var sanitized_value = sanitizeValue(value);
-
 	var self = this;
-	this.db.query(
+	this.pool.query(
 		'delete from' +
 			this.table_prefix +
 			"usermeta where meta_key = '" +
@@ -140,7 +150,7 @@ WP_Auth.prototype.setUserMeta = function (id, key, value) {
 			"' and user_id = " +
 			parseInt(id)
 	);
-	this.db.query(
+	this.pool.query(
 		'insert into' +
 			this.table_prefix +
 			"usermeta (meta_key, user_id, meta_value) VALUES('" +
@@ -152,7 +162,6 @@ WP_Auth.prototype.setUserMeta = function (id, key, value) {
 			"')"
 	);
 };
-
 WP_Auth.prototype.reverseUserMeta = function (key, value, callback) {
 	for (var id in this.meta_cache) {
 		if (key in this.meta_cache[id] && this.meta_cache[id][key] == value) {
@@ -160,11 +169,9 @@ WP_Auth.prototype.reverseUserMeta = function (key, value, callback) {
 			return;
 		}
 	}
-
 	var id = null;
-
 	var self = this;
-	this.db.query(
+	this.pool.query(
 		'select user_id from ' +
 			this.table_prefix +
 			"usermeta where meta_key = '" +
@@ -183,12 +190,11 @@ WP_Auth.prototype.reverseUserMeta = function (key, value, callback) {
 		}
 	);
 };
-
 WP_Auth.prototype.getContributors = function (callback) {
 	var self = this;
 	var users = [];
-	// this.db.query( 'select ID as user_id, user_login from ' + this.table_prefix + 'user' ).on( 'row', function( data ) {});
-	this.db.query(
+	// this.pool.query( 'select ID as user_id, user_login from ' + this.table_prefix + 'user' ).on( 'row', function( data ) {});
+	this.pool.query(
 		'select user_id, user_login from ' +
 			this.table_prefix +
 			'usermeta as meta left join ' +
@@ -202,7 +208,6 @@ WP_Auth.prototype.getContributors = function (callback) {
 		}
 	);
 };
-
 function Invalid_Auth(err) {
 	this.err = err;
 }
@@ -214,7 +219,6 @@ Invalid_Auth.prototype.on = function (key, callback) {
 	});
 	return this;
 };
-
 function Valid_Auth(data, auth) {
 	var self = this,
 		user_login = data[0],
@@ -222,7 +226,6 @@ function Valid_Auth(data, auth) {
 		token = data[2],
 		hash = data[3];
 	user_login = user_login.replace('%40', '@');
-
 	if (
 		user_login in auth.known_hashes_timeout &&
 		auth.known_hashes_timeout[user_login] < +new Date()
@@ -230,7 +233,6 @@ function Valid_Auth(data, auth) {
 		delete auth.known_hashes[user_login];
 		delete auth.known_hashes_timeout[user_login];
 	}
-
 	function parse(pass_frag, id) {
 		// console.log('Inside parse function', pass_frag, id)
 		var hmac1 = crypto.createHmac('md5', auth.salt);
@@ -248,7 +250,6 @@ function Valid_Auth(data, auth) {
 			self.emit('auth', false, 0, 'invalid hash');
 		}
 	}
-
 	if (user_login in auth.known_hashes) {
 		return process.nextTick(function () {
 			parse(
@@ -257,16 +258,18 @@ function Valid_Auth(data, auth) {
 			);
 		});
 	}
-
 	var found = false;
-	auth.db.query(
+
+console.log(auth);
+	auth.pool.query(
+
 		'select ID, user_pass from ' +
 			auth.table_prefix +
 			"users where user_login = '" +
 			user_login.replace(/(\'|\\)/g, '\\$1') +
 			"'",
 		function (err, results) {
-			// console.log('Query results', results, err)
+			console.log('Query results', results, err)
 			const data = (results && results[0]) || '';
 			if (err || !data) {
 				auth.known_hashes[user_login] = { frag: '__fail__', id: 0 };
@@ -279,7 +282,6 @@ function Valid_Auth(data, auth) {
 				};
 				auth.known_hashes_timeout[user_login] = +new Date() + auth.timeout;
 			}
-
 			parse(
 				auth.known_hashes[user_login].frag,
 				auth.known_hashes[user_login].id
@@ -287,9 +289,7 @@ function Valid_Auth(data, auth) {
 		}
 	);
 }
-
 require('util').inherits(Valid_Auth, require('events').EventEmitter);
-
 exports.create = function (config) {
 	const {
 		wpurl,
