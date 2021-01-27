@@ -34,8 +34,8 @@ function handleDisconnect(){
 		console.info('created pool to mysql host: ', mysql_host);
 	}catch(e){
 		let date_ob = new Date();
-        console.log(date_ob.getHours()+":"+date_ob.getMinutes()+' db error', err);
-		console.error('Pool creation failed to mysql host:', mysql_host, err);
+        console.log(date_ob.getHours()+":"+date_ob.getMinutes()+' db error', e);
+		console.error('Pool creation failed to mysql host:', mysql_host, e);
 		handleDisconnect();
     }
 }
@@ -313,4 +313,4 @@ exports.create = function (config) {
 		mysql_db,
 		wp_table_prefix
 	);
-};
+};	
