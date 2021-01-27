@@ -60,7 +60,7 @@ function WP_Auth(
 	var md5 = crypto.createHash('md5');
 	md5.update(wpurl);
 	this.cookiename = 'wordpress_logged_in_' + md5.digest('hex');
-	this.salt = logged_in_key + logged_in_salt;c
+	this.salt = logged_in_key + logged_in_salt;
 	
 	// Create the connection pool. The pool-specific settings are the defaults
     this.pool = handleDisconnect(mysql_host,mysql_user,mysql_pass,mysql_db);
